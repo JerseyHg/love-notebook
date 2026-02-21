@@ -61,9 +61,12 @@ export default function TimelinePage() {
         const json = await res.json();
         // 修正照片路径：确保 photos 是数组，并统一为 /uploads/ 路径
         const fixPhotoUrl = (url: string) => {
-          // 兼容旧的 /api/files/uploads/xxx.jpg 路径
           if (url.startsWith("/api/files/uploads/")) {
             return url.replace("/api/files/uploads/", "/uploads/");
+          }
+          // COS 私有读：通过代理 API 获取图片
+          if (url.includes(".cos.") && url.includes("myqcloud.com")) {
+            return `/api/cos-proxy?url=${encodeURIComponent(url)}`;
           }
           return url;
         };

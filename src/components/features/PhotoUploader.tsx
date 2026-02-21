@@ -81,7 +81,7 @@ export function PhotoUploader({
             <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-[#eef1f3]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                    src={signedUrls[url] || url}
+                    src={url.includes(".cos.") && url.includes("myqcloud.com") ? `/api/cos-proxy?url=${encodeURIComponent(url)}` : url}
                     alt={`照片 ${index + 1}`}
                     className="w-full h-full object-cover"
                 />
