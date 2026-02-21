@@ -4,6 +4,7 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import COS from "cos-nodejs-sdk-v5";
+import sharp from "sharp";
 
 const COS_SECRET_ID = process.env.COS_SECRET_ID || "";
 const COS_SECRET_KEY = process.env.COS_SECRET_KEY || "";
@@ -58,13 +59,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "图片不能超过 5MB" }, { status: 400 });
     }
 
-    const ext = file.name.split(".").pop() || "jpg";
+    const ext = "jpg";
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const hash = crypto.randomBytes(8).toString("hex");
     const fileName = `${date}_${hash}.${ext}`;
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer = Buffer.from(bytes);
+
+    // 压缩图片：最大宽度 1920px，JPEG 质量 85%
+    try {
+      buffer = await sharp(buffer)
+          .resize(1920, 1920, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+    } catch {
+      // 压缩失败就用原图
+    }
 
     let url: string;
 

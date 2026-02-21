@@ -49,20 +49,7 @@ export async function GET(req: NextRequest) {
         const filePath = new URL(url).pathname.slice(1);
         const signedUrl = generateSignedUrl(filePath);
 
-        const res = await fetch(signedUrl);
-        if (!res.ok) {
-            return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
-        }
-
-        const buffer = await res.arrayBuffer();
-        const contentType = res.headers.get("content-type") || "image/jpeg";
-
-        return new NextResponse(buffer, {
-            headers: {
-                "Content-Type": contentType,
-                "Cache-Control": "private, max-age=3600",
-            },
-        });
+        return NextResponse.redirect(signedUrl);
     } catch {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
