@@ -65,8 +65,17 @@ export async function POST(req: NextRequest) {
     const fileName = `${date}_${hash}.${ext}`;
 
     const bytes = await file.arrayBuffer();
-    let buffer = Buffer.from(bytes);
+    let buffer: Buffer = Buffer.from(bytes);
 
+    // 压缩图片：最大宽度 1920px，JPEG 质量 85%
+    try {
+      buffer = await sharp(buffer)
+          .resize(1920, 1920, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer() as Buffer;
+    } catch {
+      // 压缩失败就用原图
+    }
     // 压缩图片：最大宽度 1920px，JPEG 质量 85%
     try {
       buffer = await sharp(buffer)
