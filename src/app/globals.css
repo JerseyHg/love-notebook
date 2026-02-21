@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #5a7d8a;
+  --color-primary-hover: #4a6b77;
+  --color-bg: #f5f7f8;
+  --color-bg-secondary: #eef1f3;
+  --color-text: #1a2332;
+  --color-text-secondary: #5c6b7a;
+  --color-border: #d4dae0;
+  --color-divider: #e2e7ec;
+  --color-success: #5a8a6b;
+  --color-error: #7a5c5c;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100dvh;
+  line-height: 1.7;
+  letter-spacing: 0.2px;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #bcc4cc;
+  border-radius: 2px;
+}
+
+/* 页面内容底部留白 */
+.page-content {
+  padding-bottom: 5rem;
+}

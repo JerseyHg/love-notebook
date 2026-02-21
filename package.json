@@ -1,0 +1,40 @@
+{
+  "name": "love-notebook",
+  "version": "1.0.0",
+  "private": true,
+  "description": "恋人笔记本 - 记录属于你们的故事",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@tailwindcss/postcss": "^4.2.0",
+    "@types/node": "^25.3.0",
+    "@types/react": "^19.2.14",
+    "bcryptjs": "^3.0.3",
+    "dayjs": "^1.11.19",
+    "framer-motion": "^12.34.2",
+    "jose": "^6.1.3",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.575.0",
+    "next": "^16.1.6",
+    "postcss": "^8.5.6",
+    "prisma": "^5.22.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.0",
+    "typescript": "^5.9.3",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10"
+  }
+}

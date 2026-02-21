@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  nickname  String
+  avatar    String?
+  coupleId  String?
+  couple    Couple?  @relation(fields: [coupleId], references: [id])
+  diaries   Diary[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coupleId])
+}
+
+model Couple {
+  id            String        @id @default(cuid())
+  inviteCode    String        @unique
+  togetherDate  DateTime
+  users         User[]
+  timelines     Timeline[]
+  wishes        Wish[]
+  anniversaries Anniversary[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Timeline {
+  id        String   @id @default(cuid())
+  coupleId  String
+  couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  authorId  String
+  content   String   @db.Text
+  photos    Json     @default("[]")
+  location  Json?
+  mood      String?
+  date      DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coupleId, date])
+}
+
+model Diary {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String   @default("")
+  content   String   @db.Text
+  mood      String?
+  weather   String?
+  isPrivate Boolean  @default(false)
+  date      DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId, date])
+}
+
+model Wish {
+  id          String    @id @default(cuid())
+  coupleId    String
+  couple      Couple    @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  authorId    String
+  title       String
+  description String?   @db.Text
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  completedPhoto String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([coupleId])
+}
+
+model Anniversary {
+  id       String   @id @default(cuid())
+  coupleId String
+  couple   Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  title    String
+  date     DateTime
+  icon     String   @default("❤️")
+  repeat   String   @default("yearly") // yearly | monthly | once
+  notify   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coupleId, date])
+}
