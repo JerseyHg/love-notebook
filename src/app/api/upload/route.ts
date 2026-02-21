@@ -25,7 +25,8 @@ async function uploadToCOS(buffer: Buffer, fileName: string, contentType: string
 
   const signKey = crypto.createHmac("sha1", COS_SECRET_KEY).update(keyTime).digest("hex");
 
-  const httpString = `put\n/${filePath}\n\ncontent-type=${contentType}&host=${host}\n`;
+  const encodedContentType = encodeURIComponent(contentType).replace(/%[0-9A-F]{2}/g, m => m.toLowerCase());
+  const httpString = `put\n/${filePath}\n\ncontent-type=${encodedContentType}&host=${host}\n`;
   const sha1ed = crypto.createHash("sha1").update(httpString).digest("hex");
   const stringToSign = `sha1\n${keyTime}\n${sha1ed}\n`;
   const signature = crypto.createHmac("sha1", signKey).update(stringToSign).digest("hex");
