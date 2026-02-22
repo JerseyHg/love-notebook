@@ -89,7 +89,7 @@ function handleError(err: unknown): NextResponse {
 
   // Zod 验证失败
   if (err instanceof ZodError) {
-    const firstError = err.errors[0];
+    const firstError = err.issues[0];
     const message = firstError?.message || "输入数据格式不正确";
     return error(message, 400);
   }
