@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/server/db";
+import { Prisma } from "@prisma/client";
 
 export async function getTimelines(
   coupleId: string,
@@ -68,12 +69,18 @@ export async function updateTimeline(
   if (!item || item.coupleId !== coupleId) throw new Error("记录不存在");
   if (item.authorId !== authorId) throw new Error("无权编辑他人记录");
 
+// 处理 location：Prisma JSON 字段不接受直接传 null
+  const updateData: Record<string, unknown> = {
+    ...data,
+    date: data.date ? new Date(data.date) : undefined,
+  };
+  if (data.location === null) {
+    updateData.location = Prisma.JsonNull;
+  }
+
   return prisma.timeline.update({
     where: { id: timelineId },
-    data: {
-      ...data,
-      date: data.date ? new Date(data.date) : undefined,
-    },
+    data: updateData,
   });
 }
 
