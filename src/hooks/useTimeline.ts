@@ -2,8 +2,15 @@
 
 import useSWRInfinite from "swr/infinite";
 import { useMemo, useCallback } from "react";
-import { fetcher, apiRequest } from "@/lib/fetcher";
 import type { TimelineItem } from "@/types";
+import { apiRequest } from "@/lib/fetcher";
+
+// Timeline 专用 fetcher：保留完整的 { data, hasMore, total } 不解包
+const timelineFetcher = async (url: string): Promise<TimelinePage> => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("获取失败");
+    return res.json();
+};
 
 const PAGE_SIZE = 20;
 
@@ -44,8 +51,8 @@ export function useTimeline() {
     return `/api/timeline?page=${pageIndex + 1}&limit=${PAGE_SIZE}`;
   };
 
-  const { data: pages, error, isLoading, isValidating, size, setSize, mutate } =
-    useSWRInfinite<TimelinePage>(getKey, fetcher, {
+    const { data: pages, error, isLoading, isValidating, size, setSize, mutate } =
+        useSWRInfinite<TimelinePage>(getKey, timelineFetcher, {
       revalidateFirstPage: false,
       revalidateAll: false,
     });
