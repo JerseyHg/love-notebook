@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
-import { useSignedUrls } from "@/hooks/useSignedUrl";
 
 interface PhotoUploaderProps {
   photos: string[];
@@ -17,7 +16,6 @@ export function PhotoUploader({
 }: PhotoUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-    const signedUrls = useSignedUrls(photos);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -81,7 +79,7 @@ export function PhotoUploader({
             <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-[#eef1f3]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                    src={url.startsWith("/api/cos-proxy") ? url : (url.includes(".cos.") && url.includes("myqcloud.com") ? `/api/cos-proxy?url=${encodeURIComponent(url)}` : url)}                    alt={`照片 ${index + 1}`}
+                    src={url}
                     className="w-full h-full object-cover"
                 />
               <button
