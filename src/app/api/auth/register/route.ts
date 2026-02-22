@@ -1,33 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/db";
-import { signToken } from "@/lib/auth";
+import { prisma } from "@/lib/server/db";
+import { signToken, getAuthCookieOptions } from "@/lib/server/auth";
+import { parseBody } from "@/lib/server/api-handler";
+import { registerSchema } from "@/lib/validations";
 import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, nickname } = await req.json();
-
-    if (!email || !password || !nickname) {
-      return NextResponse.json(
-        { error: "请填写所有字段" },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "密码至少 6 位" },
-        { status: 400 }
-      );
-    }
+    // ✅ Zod 验证（email 格式、密码长度、昵称非空）
+    const { email, password, nickname } = await parseBody(req, registerSchema);
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json(
-        { error: "该邮箱已注册" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "该邮箱已注册" }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -39,13 +25,8 @@ export async function POST(req: NextRequest) {
     const token = await signToken({ userId: user.id, email: user.email });
 
     const cookieStore = await cookies();
-    cookieStore.set("token", token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 天
-      path: "/",
-    });
+    // 🔴 安全修复：使用动态 cookie 配置
+    cookieStore.set("token", token, getAuthCookieOptions());
 
     return NextResponse.json({
       success: true,
@@ -53,9 +34,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Register error:", error);
-    return NextResponse.json(
-      { error: "注册失败，请重试" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "注册失败，请重试" }, { status: 500 });
   }
 }

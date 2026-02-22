@@ -1,25 +1,28 @@
 "use client";
 
-import { HTMLAttributes, forwardRef } from "react";
+import { cn } from "@/lib/utils";
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {
+interface CardProps {
+  children: React.ReactNode;
+  className?: string;
   hover?: boolean;
+  onClick?: () => void;
 }
 
-export const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ hover = false, className = "", children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={`bg-white rounded-2xl border border-[#d4dae0] shadow-sm p-5
-          ${hover ? "hover:shadow-md hover:-translate-y-0.5 transition-all duration-250 cursor-pointer" : ""}
-          ${className}`}
-        {...props}
-      >
-        {children}
-      </div>
-    );
-  }
-);
-
-Card.displayName = "Card";
+export function Card({ children, className = "", hover, onClick }: CardProps) {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "rounded-[var(--radius-xl)] border border-[var(--color-border-light)] p-4",
+        "bg-[var(--color-bg-card)] shadow-[var(--shadow-sm)]",
+        "transition-all duration-[var(--transition)]",
+        hover && "card-hover cursor-pointer",
+        onClick && "cursor-pointer",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}

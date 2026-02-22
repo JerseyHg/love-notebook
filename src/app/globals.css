@@ -1,40 +1,259 @@
 @import "tailwindcss";
 
+/* ========================================
+   CSS 变量主题系统
+   ======================================== */
+
 :root {
+  /* 主色调 - 默认天青色 */
   --color-primary: #5a7d8a;
-  --color-primary-hover: #4a6b77;
+  --color-primary-light: #7a9daa;
+  --color-primary-dark: #3a5d6a;
+  --color-primary-50: #eef3f5;
+  --color-primary-100: #dce7eb;
+  --color-primary-ring: rgba(90, 125, 138, 0.25);
+
+  /* 强调色 */
+  --color-accent: #e88d94;
+  --color-accent-light: #f4b8bc;
+
+  /* 语义色 */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #7a5c5c;
+
+  /* 背景 */
   --color-bg: #f5f7f8;
-  --color-bg-secondary: #eef1f3;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #eef1f3;
+
+  /* 文字 */
   --color-text: #1a2332;
   --color-text-secondary: #5c6b7a;
+  --color-text-muted: #8a95a0;
+  --color-text-inverted: #ffffff;
+
+  /* 边框 */
   --color-border: #d4dae0;
-  --color-divider: #e2e7ec;
-  --color-success: #5a8a6b;
-  --color-error: #7a5c5c;
+  --color-border-light: #e2e7ec;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 20px rgba(90, 125, 138, 0.15);
+
+  /* 圆角 */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-full: 9999px;
+
+  /* 过渡 */
+  --transition: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ========================================
+   主题色切换
+   ======================================== */
+
+[data-theme="rose"] {
+  --color-primary: #e11d48;
+  --color-primary-light: #fb7185;
+  --color-primary-dark: #be123c;
+  --color-primary-50: #fff1f2;
+  --color-primary-100: #ffe4e6;
+  --color-primary-ring: rgba(225, 29, 72, 0.25);
+  --color-accent: #f472b6;
+  --color-accent-light: #f9a8d4;
+  --shadow-glow: 0 0 20px rgba(225, 29, 72, 0.15);
+}
+
+[data-theme="lavender"] {
+  --color-primary: #7c3aed;
+  --color-primary-light: #a78bfa;
+  --color-primary-dark: #6d28d9;
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-ring: rgba(124, 58, 237, 0.25);
+  --color-accent: #c084fc;
+  --color-accent-light: #e9d5ff;
+  --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.15);
+}
+
+[data-theme="amber"] {
+  --color-primary: #d97706;
+  --color-primary-light: #fbbf24;
+  --color-primary-dark: #b45309;
+  --color-primary-50: #fffbeb;
+  --color-primary-100: #fef3c7;
+  --color-primary-ring: rgba(217, 119, 6, 0.25);
+  --color-accent: #f59e0b;
+  --color-accent-light: #fcd34d;
+  --shadow-glow: 0 0 20px rgba(217, 119, 6, 0.15);
+}
+
+[data-theme="forest"] {
+  --color-primary: #059669;
+  --color-primary-light: #34d399;
+  --color-primary-dark: #047857;
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-ring: rgba(5, 150, 105, 0.25);
+  --color-accent: #10b981;
+  --color-accent-light: #6ee7b7;
+  --shadow-glow: 0 0 20px rgba(5, 150, 105, 0.15);
+}
+
+/* ========================================
+   深色模式
+   ======================================== */
+
+[data-mode="dark"] {
+  --color-bg: #0f1419;
+  --color-bg-card: #1a2332;
+  --color-bg-elevated: #1e293b;
+  --color-bg-subtle: #253040;
+
+  --color-text: #e8ecf0;
+  --color-text-secondary: #a8b5c4;
+  --color-text-muted: #6b7d8f;
+  --color-text-inverted: #0f1419;
+
+  --color-border: #2d3d4f;
+  --color-border-light: #253040;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   基础样式
+   ======================================== */
+
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "PingFang SC", "Microsoft YaHei", sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
-  min-height: 100dvh;
-  line-height: 1.7;
-  letter-spacing: 0.2px;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+/* 底部导航留白 */
+.page-content {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
   width: 4px;
 }
-
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
-  background-color: #bcc4cc;
-  border-radius: 2px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
 }
 
-/* 页面内容底部留白 */
-.page-content {
-  padding-bottom: 5rem;
+/* ========================================
+   动画关键帧
+   ======================================== */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes confetti-fall {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(100px) rotate(360deg); }
+}
+
+/* 动画工具类 */
+.animate-fade-in { animation: fade-in 0.4s ease-out; }
+.animate-fade-in-up { animation: fade-in-up 0.5s ease-out; }
+.animate-scale-in { animation: scale-in 0.3s var(--transition-spring); }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-heartbeat { animation: heartbeat 1.5s ease-in-out infinite; }
+
+/* 骨架屏 shimmer 效果 */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-subtle) 25%,
+    var(--color-bg-card) 50%,
+    var(--color-bg-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ========================================
+   交互增强
+   ======================================== */
+
+/* 按压效果 */
+.press-effect {
+  transition: transform var(--transition-fast);
+}
+.press-effect:active {
+  transform: scale(0.97);
+}
+
+/* 卡片悬浮效果 */
+.card-hover {
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 图片悬浮光泽 */
+.image-hover {
+  transition: transform var(--transition), filter var(--transition);
+}
+.image-hover:hover {
+  transform: scale(1.02);
+  filter: brightness(1.05);
+}
+
+/* 毛玻璃效果 */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+[data-mode="dark"] .glass {
+  background: rgba(15, 20, 25, 0.7);
 }

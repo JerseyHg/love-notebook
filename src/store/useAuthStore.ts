@@ -24,7 +24,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   logout: async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // 即使登出 API 失败也要清除本地状态
+    }
     set({ user: null, couple: null });
     window.location.href = "/login";
   },
@@ -39,6 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: null, couple: null, isLoading: false });
       }
     } catch {
+      console.warn("Failed to fetch user");
       set({ user: null, couple: null, isLoading: false });
     }
   },

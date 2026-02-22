@@ -1,35 +1,9 @@
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import "dayjs/locale/zh-cn";
-
-dayjs.extend(relativeTime);
-dayjs.locale("zh-cn");
+// 兼容旧 import 路径（旧组件还在用 @/lib/utils 导入这些）
+export { daysTogether, formatDate, timeAgo } from "./date";
+export { moodMap, weatherMap } from "./constants";
 
 /**
- * 计算在一起的天数
- */
-export function daysTogether(togetherDate: Date | string): number {
-  const start = dayjs(togetherDate).startOf("day");
-  const now = dayjs().startOf("day");
-  return now.diff(start, "day");
-}
-
-/**
- * 格式化日期
- */
-export function formatDate(date: Date | string, format = "YYYY年M月D日"): string {
-  return dayjs(date).format(format);
-}
-
-/**
- * 相对时间（如：3天前）
- */
-export function timeAgo(date: Date | string): string {
-  return dayjs(date).fromNow();
-}
-
-/**
- * 生成随机邀请码
+ * 生成随机邀请码（6 位大写字母+数字，排除易混淆字符）
  */
 export function generateInviteCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -41,27 +15,29 @@ export function generateInviteCode(): string {
 }
 
 /**
- * 心情 emoji 映射
+ * classNames 合并工具（替代 clsx 的轻量版）
  */
-export const moodMap: Record<string, { emoji: string; label: string }> = {
-  happy: { emoji: "😊", label: "开心" },
-  love: { emoji: "🥰", label: "甜蜜" },
-  calm: { emoji: "😌", label: "平静" },
-  sad: { emoji: "😢", label: "难过" },
-  excited: { emoji: "🤩", label: "兴奋" },
-  miss: { emoji: "🥺", label: "想你" },
-  angry: { emoji: "😤", label: "生气" },
-  tired: { emoji: "😴", label: "疲惫" },
-};
+export function cn(...classes: (string | boolean | undefined | null)[]): string {
+  return classes.filter(Boolean).join(" ");
+}
 
 /**
- * 天气图标映射
+ * 等待指定毫秒数
  */
-export const weatherMap: Record<string, { emoji: string; label: string }> = {
-  sunny: { emoji: "☀️", label: "晴" },
-  cloudy: { emoji: "☁️", label: "多云" },
-  rainy: { emoji: "🌧️", label: "雨" },
-  snowy: { emoji: "❄️", label: "雪" },
-  windy: { emoji: "💨", label: "大风" },
-  foggy: { emoji: "🌫️", label: "雾" },
-};
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 生成 blur-up 占位 SVG（用于图片渐进加载）
+ */
+export function blurPlaceholder(w = 10, h = 10): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
+      <filter id="b" color-interpolation-filters="sRGB">
+        <feGaussianBlur stdDeviation="1"/>
+      </filter>
+      <rect width="100%" height="100%" fill="#e2e7ec" filter="url(#b)"/>
+    </svg>`
+  )}`;
+}
