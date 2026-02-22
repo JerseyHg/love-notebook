@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
 import { withCouple, success, error, parseBody } from "@/lib/server/api-handler";
 import { createTimelineSchema, updateTimelineSchema } from "@/lib/validations";
 import * as timelineService from "@/services/timeline.service";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/timeline — 获取时间轴列表（分页）
@@ -18,7 +18,12 @@ export const GET = withCouple(async (req, user) => {
 
   const result = await timelineService.getTimelines(user.coupleId, { page, limit });
 
-  return success(result);
+  // 平铺返回，保持前端兼容
+  return NextResponse.json({
+    data: result.data,
+    hasMore: result.hasMore,
+    total: result.total,
+  });
 });
 
 /**
