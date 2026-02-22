@@ -1,32 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { NextRequest } from "next/server";
+import { withCouple, success, error } from "@/lib/server/api-handler";
+import * as wishService from "@/services/wishlist.service";
 
-export async function PATCH(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth();
-    const { id } = await params;
+export const PATCH = withCouple(async (req: NextRequest, user) => {
+  // 从 URL 提取动态路由参数: /api/wishlist/[id]/toggle
+  const segments = new URL(req.url).pathname.split("/");
+  const id = segments[segments.indexOf("wishlist") + 1];
 
-    const wish = await prisma.wish.findUnique({ where: { id } });
-
-    if (!wish || wish.coupleId !== user.coupleId) {
-      return NextResponse.json({ error: "心愿不存在" }, { status: 404 });
-    }
-
-    const updated = await prisma.wish.update({
-      where: { id },
-      data: {
-        completed: !wish.completed,
-        completedAt: !wish.completed ? new Date() : null,
-      },
-    });
-
-    return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
-    console.error("Toggle wish error:", error);
-    return NextResponse.json({ error: "操作失败" }, { status: 500 });
+  if (!id) {
+    return error("缺少 ID", 400);
   }
-}
+
+  const updated = await wishService.toggleWish(id, user.coupleId);
+  return success(updated);
+});
