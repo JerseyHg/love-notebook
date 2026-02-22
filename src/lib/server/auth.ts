@@ -3,13 +3,13 @@ import { cookies } from "next/headers";
 import { prisma } from "./db";
 
 // 🔴 安全修复：不再使用 fallback secret
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error(
-    "❌ JWT_SECRET 环境变量未配置！请在 .env 中设置 JWT_SECRET"
-  );
+function getSecret() {
+  const JWT_SECRET = process.env.JWT_SECRET;
+  if (!JWT_SECRET) {
+    throw new Error("❌ JWT_SECRET 环境变量未配置！请在 .env 中设置 JWT_SECRET");
+  }
+  return new TextEncoder().encode(JWT_SECRET);
 }
-const secret = new TextEncoder().encode(JWT_SECRET);
 
 export interface JWTPayload {
   userId: string;
@@ -20,12 +20,12 @@ export async function signToken(payload: JWTPayload): Promise<string> {
   return new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")
-    .sign(secret);
+    .sign(getSecret());
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as unknown as JWTPayload;
   } catch {
     return null;
