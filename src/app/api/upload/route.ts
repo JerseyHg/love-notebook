@@ -48,7 +48,7 @@ async function uploadToCOS(buffer: Buffer, filePath: string, contentType: string
       "Content-Type": contentType,
       Host: COS_HOST,
     },
-    body: buffer,
+    body: new Uint8Array(buffer),
   });
 
   if (!res.ok) {
