@@ -6,17 +6,24 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * GET /api/timeline — 获取时间轴列表（分页）
  *
- * 改造点：
- * - withCouple 自动处理认证 + 配对检查（未配对返回错误）
- * - 统一响应格式 { success, data }
- * - 业务逻辑委托给 service 层
+ * 支持参数：
+ * - page: 页码（默认 1）
+ * - limit: 每页条数（默认 20，最大 50；hasLocation 模式最大 200）
+ * - hasLocation: 只返回有位置信息的记录（足迹地图用）
  */
 export const GET = withCouple(async (req, user) => {
   const url = new URL(req.url);
+  const hasLocation = url.searchParams.get("hasLocation") === "true";
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"));
-  const limit = Math.min(50, parseInt(url.searchParams.get("limit") || "20"));
+  // 足迹地图需要一次拿更多数据
+  const maxLimit = hasLocation ? 200 : 50;
+  const limit = Math.min(maxLimit, parseInt(url.searchParams.get("limit") || "20"));
 
-  const result = await timelineService.getTimelines(user.coupleId, { page, limit });
+  const result = await timelineService.getTimelines(user.coupleId, {
+    page,
+    limit,
+    hasLocation,
+  });
 
   // 平铺返回，保持前端兼容
   return NextResponse.json({
@@ -28,10 +35,6 @@ export const GET = withCouple(async (req, user) => {
 
 /**
  * POST /api/timeline — 创建时间轴记录
- *
- * 改造点：
- * - Zod schema 自动验证请求体（content 非空、photos 格式等）
- * - 验证失败由 withCouple 内部的 handleError 统一返回友好错误信息
  */
 export const POST = withCouple(async (req, user) => {
   const data = await parseBody(req, createTimelineSchema);
@@ -46,10 +49,6 @@ export const POST = withCouple(async (req, user) => {
 
 /**
  * PUT /api/timeline — 更新时间轴记录
- *
- * 改造点：
- * - 使用 updateTimelineSchema（partial 验证）
- * - 权限校验（只能编辑自己的）在 service 层处理
  */
 export const PUT = withCouple(async (req, user) => {
   const body = await req.json();
@@ -72,10 +71,6 @@ export const PUT = withCouple(async (req, user) => {
 
 /**
  * DELETE /api/timeline — 删除时间轴记录
- *
- * 改造点：
- * - 权限校验在 service 层（只能删除自己的）
- * - service 抛出的错误由 withCouple 统一捕获返回
  */
 export const DELETE = withCouple(async (req, user) => {
   const url = new URL(req.url);
