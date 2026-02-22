@@ -13,6 +13,8 @@ import { CalendarView } from "@/components/features/CalendarView";
 import { PostDetailPanel } from "@/components/features/PostDetailPanel";
 import { PhotoUploader } from "@/components/features/PhotoUploader";
 import { PhotoWallBackground } from "@/components/features/PhotoWallBackground";
+import { LocationPicker } from "@/components/features/LocationPicker";
+import type { LocationData } from "@/components/features/LocationPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -47,6 +49,7 @@ export default function TimelinePage() {
   const [mood, setMood] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [photos, setPhotos] = useState<string[]>([]);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // 删除确认
@@ -67,6 +70,7 @@ export default function TimelinePage() {
     setMood("");
     setDate(new Date().toISOString().slice(0, 10));
     setPhotos([]);
+    setLocation(null);
     setEditingId(null);
     setShowForm(false);
   };
@@ -79,11 +83,11 @@ export default function TimelinePage() {
 
     try {
       if (editingId) {
-        await updateTimeline(editingId, { content, mood, date, photos });
+        await updateTimeline(editingId, { content, mood, date, photos, location });
         toast("success", "修改成功");
         setSelectedItem(null);
       } else {
-        await createTimeline({ content, photos, mood, date });
+        await createTimeline({ content, photos, mood, date, location });
         toast("success", "发布成功");
       }
       resetForm();
@@ -113,6 +117,7 @@ export default function TimelinePage() {
     setMood(item.mood || "");
     setDate(item.date.slice(0, 10));
     setPhotos(item.photos || []);
+    setLocation(item.location || null);
     setShowForm(true);
     setSelectedItem(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -196,7 +201,18 @@ export default function TimelinePage() {
                     required
                   />
 
-                  <PhotoUploader photos={photos} onChange={setPhotos} />
+                  <PhotoUploader
+                    photos={photos}
+                    onChange={setPhotos}
+                    onError={(msg) => toast("error", msg)}
+                  />
+
+                  {/* ✅ 位置选择器 */}
+                  <LocationPicker
+                    value={location}
+                    onChange={setLocation}
+                    onError={(msg) => toast("error", msg)}
+                  />
 
                   <div className="flex gap-2 flex-wrap">
                     {Object.entries(moodMap).map(([key, { emoji, label }]) => (
@@ -313,74 +329,54 @@ export default function TimelinePage() {
               style={{
                 flex: hasDetail ? "0 0 56%" : "0 0 0%",
                 opacity: hasDetail ? 1 : 0,
-                maxHeight: "calc(100vh - 2rem)",
                 transition: "flex 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease",
-                pointerEvents: hasDetail ? "auto" : "none",
               }}
             >
-              {selectedItem && (
-                <PostDetailPanel
-                  key={selectedItem.id}
-                  item={selectedItem}
-                  author={couple?.users.find((u) => u.id === selectedItem.authorId)}
-                  isAuthor={selectedItem.authorId === user?.id}
-                  onClose={() => setSelectedItem(null)}
-                  onEdit={handleEdit}
-                  onDelete={(id) => setDeleteId(id)}
-                />
-              )}
+              <AnimatePresence>
+                {selectedItem && (
+                  <PostDetailPanel
+                    item={selectedItem}
+                    author={couple?.users.find((u) => u.id === selectedItem.authorId)}
+                    isAuthor={selectedItem.authorId === user?.id}
+                    onClose={() => setSelectedItem(null)}
+                    onEdit={handleEdit}
+                    onDelete={(id) => setDeleteId(id)}
+                  />
+                )}
+              </AnimatePresence>
             </div>
-
-            {/* 手机端全屏详情 */}
-            <AnimatePresence>
-              {hasDetail && selectedItem && (
-                <motion.div
-                  key="mobile-detail"
-                  initial={{ opacity: 0, y: "100%" }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: "100%" }}
-                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                  className="fixed inset-0 z-50 bg-[#f5f7f8] lg:hidden overflow-hidden"
-                >
-                  <div className="h-full overflow-y-auto">
-                    <PostDetailPanel
-                      item={selectedItem}
-                      author={couple?.users.find((u) => u.id === selectedItem.authorId)}
-                      isAuthor={selectedItem.authorId === user?.id}
-                      onClose={() => setSelectedItem(null)}
-                      onEdit={handleEdit}
-                      onDelete={(id) => setDeleteId(id)}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* 删除确认弹窗 */}
-        {deleteId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-6">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-xs text-center shadow-xl"
-            >
-              <p className="text-[#1a2332] font-medium mb-2">确定删除？</p>
-              <p className="text-sm text-[#5c6b7a] mb-5">此操作不可撤销</p>
-              <div className="flex gap-3">
-                <Button variant="secondary" className="flex-1" onClick={() => setDeleteId(null)}>
-                  取消
-                </Button>
-                <Button variant="danger" className="flex-1" onClick={handleDelete}>
-                  删除
-                </Button>
-              </div>
-            </motion.div>
           </div>
         )}
       </div>
+
+      {/* 删除确认弹窗 */}
+      <AnimatePresence>
+        {deleteId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm px-6"
+            onClick={() => setDeleteId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-xl"
+            >
+              <h3 className="text-base font-bold text-[#1a2332] mb-2">确认删除？</h3>
+              <p className="text-sm text-[#5c6b7a] mb-5">删除后无法恢复</p>
+              <div className="flex gap-3">
+                <Button variant="ghost" className="flex-1" onClick={() => setDeleteId(null)}>取消</Button>
+                <Button className="flex-1 !bg-[#7a5c5c] !hover:bg-[#6a4c4c]" onClick={handleDelete}>删除</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

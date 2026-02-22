@@ -7,9 +7,9 @@ import { apiRequest } from "@/lib/fetcher";
 
 // Timeline 专用 fetcher：保留完整的 { data, hasMore, total } 不解包
 const timelineFetcher = async (url: string): Promise<TimelinePage> => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("获取失败");
-    return res.json();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("获取失败");
+  return res.json();
 };
 
 const PAGE_SIZE = 20;
@@ -31,7 +31,11 @@ function fixPhotoUrl(url: string) {
 function fixItem(item: TimelineItem): TimelineItem {
   let photos = item.photos;
   if (typeof photos === "string") {
-    try { photos = JSON.parse(photos as unknown as string); } catch { photos = []; }
+    try {
+      photos = JSON.parse(photos as unknown as string);
+    } catch {
+      photos = [];
+    }
   }
   if (!Array.isArray(photos)) photos = [];
   return { ...item, photos: photos.map(fixPhotoUrl) };
@@ -43,6 +47,7 @@ function fixItem(item: TimelineItem): TimelineItem {
  * ✅ 自动缓存 & 去重
  * ✅ 无限滚动分页
  * ✅ 错误状态暴露给调用方
+ * ✅ 支持 location 字段
  */
 export function useTimeline() {
   const getKey = (pageIndex: number, previousPageData: TimelinePage | null) => {
@@ -51,11 +56,18 @@ export function useTimeline() {
     return `/api/timeline?page=${pageIndex + 1}&limit=${PAGE_SIZE}`;
   };
 
-    const { data: pages, error, isLoading, isValidating, size, setSize, mutate } =
-        useSWRInfinite<TimelinePage>(getKey, timelineFetcher, {
-      revalidateFirstPage: false,
-      revalidateAll: false,
-    });
+  const {
+    data: pages,
+    error,
+    isLoading,
+    isValidating,
+    size,
+    setSize,
+    mutate,
+  } = useSWRInfinite<TimelinePage>(getKey, timelineFetcher, {
+    revalidateFirstPage: false,
+    revalidateAll: false,
+  });
 
   // 合并所有页数据
   const items = useMemo(() => {
@@ -63,7 +75,7 @@ export function useTimeline() {
     return pages.flatMap((page) => (page.data || []).map(fixItem));
   }, [pages]);
 
-  const hasMore = pages ? pages[pages.length - 1]?.hasMore ?? false : false;
+  const hasMore = pages ? (pages[pages.length - 1]?.hasMore ?? false) : false;
   const loadingMore = isValidating && (pages?.length ?? 0) > 0;
 
   const loadMore = useCallback(() => {
@@ -73,7 +85,13 @@ export function useTimeline() {
   }, [loadingMore, hasMore, setSize]);
 
   const createTimeline = useCallback(
-    async (data: { content: string; photos?: string[]; mood?: string; date?: string }) => {
+    async (data: {
+      content: string;
+      photos?: string[];
+      mood?: string;
+      date?: string;
+      location?: { lat: number; lng: number; name: string } | null;
+    }) => {
       await apiRequest("/api/timeline", {
         method: "POST",
         body: JSON.stringify(data),
