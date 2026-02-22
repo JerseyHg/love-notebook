@@ -4,13 +4,15 @@ import { prisma } from "@/lib/server/db";
  * 获取用户可见的日记列表
  * - 自己的所有日记
  * - 对方的公开日记（如果已配对）
+ *
+ * ✅ 改进：直接用 Diary.coupleId 查询，不再 join User 表
  */
 export async function getDiaries(userId: string, coupleId: string | null) {
   const where = coupleId
     ? {
         OR: [
           { authorId: userId },
-          { author: { coupleId }, isPrivate: false },
+          { coupleId, isPrivate: false },
         ],
       }
     : { authorId: userId };
@@ -29,9 +31,11 @@ export async function getDiaries(userId: string, coupleId: string | null) {
 
 /**
  * 创建日记
+ * ✅ 改进：创建时写入 coupleId
  */
 export async function createDiary(
   authorId: string,
+  coupleId: string | null,
   data: {
     title?: string;
     content: string;
@@ -44,12 +48,18 @@ export async function createDiary(
   return prisma.diary.create({
     data: {
       authorId,
+      coupleId,
       title: data.title || "",
       content: data.content,
       mood: data.mood || null,
       weather: data.weather || null,
       isPrivate: data.isPrivate || false,
       date: new Date(data.date || Date.now()),
+    },
+    include: {
+      author: {
+        select: { id: true, nickname: true, avatar: true },
+      },
     },
   });
 }

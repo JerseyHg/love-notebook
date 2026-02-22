@@ -1,75 +1,86 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import useSWR from "swr";
+import { useCallback } from "react";
+import { fetcher, apiRequest } from "@/lib/fetcher";
 import type { WishItem } from "@/types";
 
+/**
+ * 心愿清单 Hook（SWR 版）
+ *
+ * ✅ 乐观更新 toggle / delete
+ * ✅ 失败自动回滚（SWR revalidate）
+ */
 export function useWishes() {
-  const [wishes, setWishes] = useState<WishItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { data, error, isLoading, mutate } = useSWR<WishItem[]>(
+    "/api/wishlist",
+    fetcher
+  );
 
-  const fetchWishes = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/wishlist");
-      if (res.ok) {
-        const data = await res.json();
-        setWishes(data.data || []);
-      }
-    } catch (err) {
-      console.warn("Fetch wishes failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const wishes = data || [];
 
   const createWish = useCallback(
-    async (data: { title: string; description?: string }) => {
-      const res = await fetch("/api/wishlist", {
+    async (input: { title: string; description?: string }) => {
+      await apiRequest("/api/wishlist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error("创建失败");
-      await fetchWishes();
+      mutate();
     },
-    [fetchWishes]
+    [mutate]
   );
 
   const toggleWish = useCallback(
     async (id: string) => {
-      // 乐观更新：先在 UI 上切换状态
-      setWishes((prev) =>
-        prev.map((w) =>
-          w.id === id
-            ? { ...w, completed: !w.completed, completedAt: w.completed ? null : new Date().toISOString() }
-            : w
-        )
+      // 乐观更新
+      mutate(
+        (prev) =>
+          prev?.map((w) =>
+            w.id === id
+              ? {
+                  ...w,
+                  completed: !w.completed,
+                  completedAt: w.completed ? null : new Date().toISOString(),
+                }
+              : w
+          ),
+        { revalidate: false }
       );
 
       try {
-        const res = await fetch(`/api/wishlist/${id}/toggle`, { method: "PUT" });
-        if (!res.ok) {
-          // 失败则回滚
-          await fetchWishes();
-        }
+        await fetch(`/api/wishlist/${id}/toggle`, { method: "PATCH" });
       } catch {
-        await fetchWishes();
+        // 失败回滚
+        mutate();
       }
     },
-    [fetchWishes]
+    [mutate]
   );
 
   const deleteWish = useCallback(
     async (id: string) => {
-      setWishes((prev) => prev.filter((w) => w.id !== id));
+      // 乐观更新
+      mutate(
+        (prev) => prev?.filter((w) => w.id !== id),
+        { revalidate: false }
+      );
+
       try {
         await fetch(`/api/wishlist/${id}`, { method: "DELETE" });
       } catch {
-        await fetchWishes();
+        mutate();
       }
     },
-    [fetchWishes]
+    [mutate]
   );
 
-  return { wishes, loading, fetchWishes, createWish, toggleWish, deleteWish };
+  return {
+    wishes,
+    loading: isLoading,
+    error: error?.message || null,
+    refresh: () => mutate(),
+    createWish,
+    toggleWish,
+    deleteWish,
+  };
 }

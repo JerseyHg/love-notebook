@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, LayoutGrid, Clock, CalendarDays } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTimeline } from "@/hooks/useTimeline";
+import { useToast } from "@/components/ui/Toast";
 import { LoveDaysCounter } from "@/components/features/LoveDaysCounter";
 import { TimelineCard } from "@/components/features/TimelineCard";
 import { MasonryView } from "@/components/features/MasonryView";
@@ -27,13 +29,15 @@ const viewModes: { key: ViewMode; icon: typeof LayoutGrid; label: string }[] = [
 
 export default function TimelinePage() {
   const { user, couple } = useAuthStore();
-  const [items, setItems] = useState<TimelineItem[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("masonry");
+  const { toast } = useToast();
 
-  // 选中的 post（右侧详情面板）
+  // ✅ 使用 SWR hook 替代手动 fetch
+  const {
+    items, hasMore, loading, loadingMore, error,
+    loadMore, createTimeline, updateTimeline, deleteTimeline,
+  } = useTimeline();
+
+  const [viewMode, setViewMode] = useState<ViewMode>("masonry");
   const [selectedItem, setSelectedItem] = useState<TimelineItem | null>(null);
 
   // 表单状态
@@ -43,58 +47,20 @@ export default function TimelinePage() {
   const [mood, setMood] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [photos, setPhotos] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // 删除确认
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // 收集所有照片用于背景墙
-  const allPhotos = useMemo(() => {
-    return items.flatMap((item) => item.photos || []);
-  }, [items]);
-
-  const fetchTimelines = useCallback(async (pageNum = 1, append = false) => {
-    try {
-      if (pageNum > 1) setLoadingMore(true);
-      const res = await fetch(`/api/timeline?page=${pageNum}&limit=20`);
-      if (res.ok) {
-        const json = await res.json();
-        // 修正照片路径：确保 photos 是数组，并统一为 /uploads/ 路径
-        const fixPhotoUrl = (url: string) => {
-          // 兼容旧数据中的路径格式
-          if (url.startsWith("/api/files/uploads/")) {
-            return url.replace("/api/files/uploads/", "/uploads/");
-          }
-          // 公有读：COS URL 直接使用，不需要代理
-          return url;
-        };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const safeData = (json.data || []).map((item: any) => {
-          let photos = item.photos;
-          if (typeof photos === "string") {
-            try { photos = JSON.parse(photos); } catch { photos = []; }
-          }
-          if (!Array.isArray(photos)) photos = [];
-          return { ...item, photos: photos.map(fixPhotoUrl) };
-        });
-        if (append) {
-          setItems((prev) => [...prev, ...safeData]);
-        } else {
-          setItems(safeData);
-        }
-        setHasMore(json.hasMore || false);
-        setPage(pageNum);
-      }
-    } catch {
-      /* ignore */
-    } finally {
-      setLoadingMore(false);
-    }
-  }, []);
-
+  // ✅ SWR 错误时 toast 提示
   useEffect(() => {
-    fetchTimelines();
-  }, [fetchTimelines]);
+    if (error) toast("error", error);
+  }, [error, toast]);
+
+  const allPhotos = useMemo(
+    () => items.flatMap((item) => item.photos || []),
+    [items]
+  );
 
   const resetForm = () => {
     setContent("");
@@ -105,38 +71,39 @@ export default function TimelinePage() {
     setShowForm(false);
   };
 
+  // ✅ 提交：用 hook 的 create/update + toast 错误
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       if (editingId) {
-        const res = await fetch("/api/timeline", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editingId, content, mood, date, photos }),
-        });
-        if (res.ok) {
-          resetForm();
-          fetchTimelines();
-          setSelectedItem(null);
-        }
+        await updateTimeline(editingId, { content, mood, date, photos });
+        toast("success", "修改成功");
+        setSelectedItem(null);
       } else {
-        const res = await fetch("/api/timeline", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, mood, date, photos }),
-        });
-        if (res.ok) {
-          resetForm();
-          fetchTimelines();
-        }
+        await createTimeline({ content, photos, mood, date });
+        toast("success", "发布成功");
       }
-    } catch {
-      /* ignore */
+      resetForm();
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "操作失败");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
+    }
+  };
+
+  // ✅ 删除：用 hook + toast
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteTimeline(deleteId);
+      if (selectedItem?.id === deleteId) setSelectedItem(null);
+      setDeleteId(null);
+      toast("success", "已删除");
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "删除失败");
     }
   };
 
@@ -151,28 +118,8 @@ export default function TimelinePage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      const res = await fetch(`/api/timeline?id=${deleteId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setItems((prev) => prev.filter((i) => i.id !== deleteId));
-        if (selectedItem?.id === deleteId) setSelectedItem(null);
-        setDeleteId(null);
-      }
-    } catch {
-      /* ignore */
-    }
-  };
-
   const handleSelectItem = (item: TimelineItem) => {
-    if (selectedItem?.id === item.id) {
-      setSelectedItem(null);
-    } else {
-      setSelectedItem(item);
-    }
+    setSelectedItem(selectedItem?.id === item.id ? null : item);
   };
 
   const partner = couple?.users.find((u) => u.id !== user?.id);
@@ -180,11 +127,9 @@ export default function TimelinePage() {
 
   return (
     <>
-      {/* 模糊照片墙背景 */}
       <PhotoWallBackground photos={allPhotos} />
 
       <div className="relative z-[1] space-y-5">
-        {/* 恋爱天数 */}
         {couple && (
           <LoveDaysCounter
             togetherDate={couple.togetherDate}
@@ -193,16 +138,13 @@ export default function TimelinePage() {
           />
         )}
 
-        {/* 工具栏：视图切换 + 新增按钮 */}
+        {/* 工具栏 */}
         <div className="flex items-center justify-between">
           <div className="flex bg-white/80 backdrop-blur-sm rounded-xl border border-[#d4dae0] p-0.5">
             {viewModes.map(({ key, icon: Icon, label }) => (
               <button
                 key={key}
-                onClick={() => {
-                  setViewMode(key);
-                  setSelectedItem(null);
-                }}
+                onClick={() => { setViewMode(key); setSelectedItem(null); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all duration-200
                   ${viewMode === key
                     ? "bg-[#5a7d8a] text-white shadow-sm"
@@ -220,10 +162,7 @@ export default function TimelinePage() {
             size="sm"
             onClick={() => {
               if (showForm) resetForm();
-              else {
-                setShowForm(true);
-                setSelectedItem(null);
-              }
+              else { setShowForm(true); setSelectedItem(null); }
             }}
           >
             {showForm ? <X size={16} className="mr-1" /> : <Plus size={16} className="mr-1" />}
@@ -244,9 +183,7 @@ export default function TimelinePage() {
               <Card className="backdrop-blur-sm bg-white/90">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {editingId && (
-                    <div className="text-xs text-[#5a7d8a] font-medium">
-                      正在编辑记录
-                    </div>
+                    <div className="text-xs text-[#5a7d8a] font-medium">正在编辑记录</div>
                   )}
 
                   <textarea
@@ -278,17 +215,11 @@ export default function TimelinePage() {
                     ))}
                   </div>
 
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
 
                   <div className="flex gap-2 justify-end">
-                    <Button variant="ghost" type="button" onClick={resetForm}>
-                      取消
-                    </Button>
-                    <Button type="submit" loading={loading}>
+                    <Button variant="ghost" type="button" onClick={resetForm}>取消</Button>
+                    <Button type="submit" loading={submitting}>
                       {editingId ? "保存修改" : "发布"}
                     </Button>
                   </div>
@@ -298,20 +229,21 @@ export default function TimelinePage() {
           )}
         </AnimatePresence>
 
-        {/* 内容区域 —— 分栏布局 */}
+        {/* 内容区域 */}
         {items.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-full bg-[#eef1f3] flex items-center justify-center mx-auto mb-4">
-              <Plus size={24} className="text-[#5a7d8a]" />
+          loading ? (
+            <div className="text-center py-16 text-[#8a95a0]">
+              <p className="text-sm">加载中...</p>
             </div>
-            <p className="text-sm text-[#5c6b7a]">还没有记录</p>
-            <p className="text-xs text-[#8a95a0] mt-1">
-              点击"记录时刻"开始你们的故事
-            </p>
-          </div>
+          ) : (
+            <div className="text-center py-16 text-[#8a95a0]">
+              <p className="text-4xl mb-3">📸</p>
+              <p className="text-sm">记录你们的第一个美好时刻吧</p>
+            </div>
+          )
         ) : (
-          <div className="flex gap-5 items-start">
-            {/* 左侧：列表区 */}
+          <div className="flex gap-6 items-start">
+            {/* 左侧：列表区域 */}
             <div
               className="min-w-0"
               style={{
@@ -319,7 +251,6 @@ export default function TimelinePage() {
                 transition: "flex 0.45s cubic-bezier(0.4, 0, 0.2, 1)",
               }}
             >
-              {/* 瀑布流视图 */}
               {viewMode === "masonry" && (
                 <MasonryView
                   items={items}
@@ -331,7 +262,6 @@ export default function TimelinePage() {
                 />
               )}
 
-              {/* 经典时间轴视图 */}
               {viewMode === "timeline" && (
                 <div className="space-y-5 relative">
                   {items.length > 0 && (
@@ -342,7 +272,9 @@ export default function TimelinePage() {
                       key={item.id}
                       item={item}
                       authorName={
-                        couple?.users.find((u) => u.id === item.authorId)?.nickname || "未知"
+                        item.author?.nickname ||
+                        couple?.users.find((u) => u.id === item.authorId)?.nickname ||
+                        "未知"
                       }
                       isAuthor={item.authorId === user?.id}
                       isSelected={selectedItem?.id === item.id}
@@ -355,7 +287,6 @@ export default function TimelinePage() {
                 </div>
               )}
 
-              {/* 日历热力图视图 */}
               {viewMode === "calendar" && (
                 <Card>
                   <CalendarView
@@ -369,19 +300,14 @@ export default function TimelinePage() {
               {/* 加载更多 */}
               {hasMore && viewMode !== "calendar" && (
                 <div className="text-center pt-2 pb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    loading={loadingMore}
-                    onClick={() => fetchTimelines(page + 1, true)}
-                  >
+                  <Button variant="ghost" size="sm" loading={loadingMore} onClick={loadMore}>
                     加载更多
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* 右侧：详情面板 —— 桌面端，不用 AnimatePresence 切换 key，只做淡入淡出 */}
+            {/* 右侧：详情面板（桌面端） */}
             <div
               className="sticky top-4 hidden lg:block overflow-hidden"
               style={{
@@ -405,7 +331,7 @@ export default function TimelinePage() {
               )}
             </div>
 
-            {/* 手机端：全屏覆盖详情 */}
+            {/* 手机端全屏详情 */}
             <AnimatePresence>
               {hasDetail && selectedItem && (
                 <motion.div

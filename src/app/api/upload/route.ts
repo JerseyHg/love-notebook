@@ -1,51 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/server/auth";
+import { useCOS, generateFilePath, COS_HOST } from "@/lib/server/cos";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import COS from "cos-nodejs-sdk-v5";
 import sharp from "sharp";
 
-const COS_SECRET_ID = process.env.COS_SECRET_ID || "";
-const COS_SECRET_KEY = process.env.COS_SECRET_KEY || "";
-const COS_BUCKET = process.env.COS_BUCKET || "";
-const COS_REGION = process.env.COS_REGION || "ap-shanghai";
-
-const useCOS = !!(COS_SECRET_ID && COS_SECRET_KEY && COS_BUCKET);
-
-const cos = useCOS
-  ? new COS({ SecretId: COS_SECRET_ID, SecretKey: COS_SECRET_KEY })
-  : null;
-
-function uploadToCOS(
-  buffer: Buffer,
-  fileName: string,
-  contentType: string
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const key = `photos/${fileName}`;
-    cos!.putObject(
-      {
-        Bucket: COS_BUCKET,
-        Region: COS_REGION,
-        Key: key,
-        Body: buffer,
-        ContentType: contentType,
-      },
-      (err) => {
-        if (err) {
-          reject(new Error(`COS upload failed: ${err.message}`));
-        } else {
-          const url = `https://${COS_BUCKET}.cos.${COS_REGION}.myqcloud.com/${key}`;
-          resolve(url);
-        }
-      }
-    );
-  });
-}
+/**
+ * ✅ 修复签名重复问题：
+ * COS 上传统一使用 cos.ts 生成的签名 + fetch PUT，
+ * 不再单独实例化 cos-nodejs-sdk-v5 SDK。
+ *
+ * 好处：
+ * 1. 签名逻辑只在 cos.ts 一个地方维护
+ * 2. 不再引入 cos-nodejs-sdk-v5 的 putObject，减少依赖
+ */
 
 /**
  * 压缩图片：最大宽度 1920px，JPEG 质量 85%
+ * ✅ 只调用一次
  */
 async function compressImage(buffer: Buffer): Promise<Buffer> {
   try {
@@ -54,10 +27,36 @@ async function compressImage(buffer: Buffer): Promise<Buffer> {
       .jpeg({ quality: 85 })
       .toBuffer();
   } catch {
-    // 压缩失败用原图
     console.warn("Image compression failed, using original");
     return buffer;
   }
+}
+
+/**
+ * 通过签名 URL + fetch PUT 上传到 COS
+ * 统一使用 cos.ts 的签名方法
+ */
+async function uploadToCOS(buffer: Buffer, filePath: string, contentType: string): Promise<string> {
+  // 动态 import cos.ts 的签名方法
+  const { generateUploadSignature } = await import("@/lib/server/cos");
+  const { authorization, url } = generateUploadSignature(filePath);
+
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: authorization,
+      "Content-Type": contentType,
+      Host: COS_HOST,
+    },
+    body: buffer,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`COS upload failed: ${res.status} ${text}`);
+  }
+
+  return `https://${COS_HOST}/${filePath}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -76,28 +75,27 @@ export async function POST(req: NextRequest) {
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "图片不能超过 5MB" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "图片不能超过 5MB" }, { status: 400 });
     }
-
-    const ext = "jpg";
-    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `${date}_${hash}.${ext}`;
 
     const bytes = await file.arrayBuffer();
     const rawBuffer = Buffer.from(bytes);
 
-    // 🔴 修复：只压缩一次（原来重复执行了两次）
+    // ✅ 只压缩一次
     const buffer = await compressImage(rawBuffer);
 
     let url: string;
 
-    if (useCOS && cos) {
-      url = await uploadToCOS(buffer, fileName, file.type);
+    if (useCOS) {
+      // ✅ 使用 cos.ts 统一的文件路径生成 + 签名上传
+      const filePath = generateFilePath(file.name);
+      url = await uploadToCOS(buffer, filePath, "image/jpeg");
     } else {
+      // 本地存储 fallback
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const hash = crypto.randomBytes(8).toString("hex");
+      const fileName = `${date}_${hash}.jpg`;
+
       const uploadDir = path.join(process.cwd(), "public", "uploads");
       await mkdir(uploadDir, { recursive: true });
       await writeFile(path.join(uploadDir, fileName), buffer);
@@ -107,6 +105,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, url });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json({ error: "上传失败" }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "上传失败" },
+      { status: 500 }
+    );
   }
 }

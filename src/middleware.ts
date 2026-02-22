@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+// ✅ 安全修复：与 auth.ts 保持一致，不再使用空字符串 fallback
+function getSecret() {
+  const JWT_SECRET = process.env.JWT_SECRET;
+  if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET 环境变量未配置");
+  }
+  return new TextEncoder().encode(JWT_SECRET);
+}
 
 // 不需要登录的路径
 const publicPaths = [
@@ -36,7 +43,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
     try {
-      await jwtVerify(token, secret);
+      await jwtVerify(token, getSecret());
       return NextResponse.next();
     } catch {
       return NextResponse.json({ error: "登录已过期" }, { status: 401 });
@@ -49,14 +56,12 @@ export async function middleware(req: NextRequest) {
   }
 
   try {
-    await jwtVerify(token, secret);
-    // 已登录用户访问 login/register 页面时，重定向到主页
+    await jwtVerify(token, getSecret());
     if (pathname === "/login" || pathname === "/register") {
       return NextResponse.redirect(new URL("/timeline", req.url));
     }
     return NextResponse.next();
   } catch {
-    // Token 无效，重定向到登录
     const res = NextResponse.redirect(new URL("/login", req.url));
     res.cookies.delete("token");
     return res;
@@ -65,12 +70,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * 匹配所有路径，除了：
-     * - _next/static (静态文件)
-     * - _next/image (图片优化)
-     * - favicon.ico
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

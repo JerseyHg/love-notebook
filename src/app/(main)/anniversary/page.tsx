@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, CalendarHeart, Bell, BellOff } from "lucide-react";
+import { Plus, CalendarHeart } from "lucide-react";
+import { useAnniversaries } from "@/hooks/useAnniversaries";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { formatDate } from "@/lib/utils";
 import dayjs from "dayjs";
-import type { AnniversaryItem } from "@/types";
 
 function daysUntilNext(dateStr: string, repeat: string): number {
   const now = dayjs().startOf("day");
@@ -18,7 +19,6 @@ function daysUntilNext(dateStr: string, repeat: string): number {
     return date.diff(now, "day");
   }
 
-  // 计算下一个纪念日
   let next = date;
   if (repeat === "yearly") {
     next = date.year(now.year());
@@ -31,65 +31,48 @@ function daysUntilNext(dateStr: string, repeat: string): number {
   return next.diff(now, "day");
 }
 
+const icons = ["❤️", "💕", "🎂", "🎄", "🌹", "💍", "🏠", "✈️", "🎓", "🐾"];
+const repeatOptions = [
+  { value: "yearly", label: "每年" },
+  { value: "monthly", label: "每月" },
+  { value: "once", label: "仅一次" },
+];
+
 export default function AnniversaryPage() {
-  const [items, setItems] = useState<AnniversaryItem[]>([]);
+  const { toast } = useToast();
+  const { items, loading, error, createAnniversary, deleteAnniversary } = useAnniversaries();
+
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [icon, setIcon] = useState("❤️");
   const [repeat, setRepeat] = useState("yearly");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const fetchAnniversaries = useCallback(async () => {
-    try {
-      const res = await fetch("/api/anniversary");
-      if (res.ok) {
-        const data = await res.json();
-        setItems(data.data || []);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
+  // ✅ 错误 toast
   useEffect(() => {
-    fetchAnniversaries();
-  }, [fetchAnniversaries]);
+    if (error) toast("error", error);
+  }, [error, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !date) return;
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const res = await fetch("/api/anniversary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, date, icon, repeat }),
-      });
-
-      if (res.ok) {
-        setTitle("");
-        setDate("");
-        setIcon("❤️");
-        setShowForm(false);
-        fetchAnniversaries();
-      }
-    } catch {
-      /* ignore */
+      await createAnniversary({ title, date, icon, repeat });
+      toast("success", "纪念日已添加");
+      setTitle("");
+      setDate("");
+      setIcon("❤️");
+      setShowForm(false);
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "添加失败");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const icons = ["❤️", "💕", "🎂", "🎄", "🌹", "💍", "🏠", "✈️", "🎓", "🐾"];
-  const repeatOptions = [
-    { value: "yearly", label: "每年" },
-    { value: "monthly", label: "每月" },
-    { value: "once", label: "仅一次" },
-  ];
-
-  // 按距离下次纪念日排序
   const sorted = [...items].sort(
     (a, b) => daysUntilNext(a.date, a.repeat) - daysUntilNext(b.date, b.repeat)
   );
@@ -128,9 +111,7 @@ export default function AnniversaryPage() {
               />
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  图标
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">图标</label>
                 <div className="flex gap-2 flex-wrap">
                   {icons.map((ic) => (
                     <button
@@ -147,9 +128,7 @@ export default function AnniversaryPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  重复
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">重复</label>
                 <div className="flex gap-2">
                   {repeatOptions.map((opt) => (
                     <button
@@ -172,7 +151,7 @@ export default function AnniversaryPage() {
                 <Button variant="ghost" type="button" onClick={() => setShowForm(false)}>
                   取消
                 </Button>
-                <Button type="submit" loading={loading}>
+                <Button type="submit" loading={submitting}>
                   保存
                 </Button>
               </div>
@@ -182,63 +161,45 @@ export default function AnniversaryPage() {
       )}
 
       {/* 纪念日列表 */}
-      {sorted.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-16 text-gray-400">
+          <p className="text-sm">加载中...</p>
+        </div>
+      ) : sorted.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">📅</p>
-          <p className="text-sm">添加你们的重要日子吧</p>
+          <p className="text-sm">添加你们的第一个纪念日吧</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {sorted.map((item, index) => {
-            const daysLeft = daysUntilNext(item.date, item.repeat);
-            const isToday = daysLeft === 0;
+          {sorted.map((item) => {
+            const days = daysUntilNext(item.date, item.repeat);
+            const isToday = days === 0;
+            const isPast = item.repeat === "once" && days < 0;
 
             return (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
               >
-                <Card
-                  className={isToday ? "ring-2 ring-pink-300 bg-pink-50/50" : ""}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center text-2xl">
-                      {item.icon}
+                <Card className={isToday ? "ring-2 ring-pink-300 bg-pink-50/50" : ""}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{item.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-gray-800 truncate">{item.title}</h3>
+                      <p className="text-xs text-gray-400">{formatDate(item.date)}</p>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-800 text-sm">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {formatDate(item.date)}
-                        {item.repeat !== "once" &&
-                          ` · ${item.repeat === "yearly" ? "每年" : "每月"}`}
-                      </p>
-                    </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       {isToday ? (
-                        <span className="text-sm font-bold text-pink-500">
-                          今天！🎉
-                        </span>
+                        <span className="text-sm font-bold text-pink-500">就是今天!</span>
+                      ) : isPast ? (
+                        <span className="text-xs text-gray-400">已过</span>
                       ) : (
-                        <>
-                          <span className="text-lg font-bold text-gray-800">
-                            {daysLeft}
-                          </span>
-                          <span className="text-xs text-gray-400 ml-0.5">
-                            天后
-                          </span>
-                        </>
+                        <span className="text-sm font-semibold text-gray-700">
+                          还有 <span className="text-pink-500">{days}</span> 天
+                        </span>
                       )}
-                      <div className="mt-1">
-                        {item.notify ? (
-                          <Bell size={12} className="text-pink-400 ml-auto" />
-                        ) : (
-                          <BellOff size={12} className="text-gray-300 ml-auto" />
-                        )}
-                      </div>
                     </div>
                   </div>
                 </Card>

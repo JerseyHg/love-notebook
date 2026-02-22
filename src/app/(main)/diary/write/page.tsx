@@ -3,12 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Lock, Unlock } from "lucide-react";
+import { useDiaries } from "@/hooks/useDiaries";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { moodMap, weatherMap } from "@/lib/utils";
 
 export default function WriteDiaryPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const { createDiary } = useDiaries();
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [mood, setMood] = useState("");
@@ -23,17 +28,12 @@ export default function WriteDiaryPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/diary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, mood, weather, isPrivate, date }),
-      });
-
-      if (res.ok) {
-        router.push("/diary");
-      }
-    } catch {
-      /* ignore */
+      await createDiary({ title, content, mood, weather, isPrivate, date });
+      toast("success", "日记已保存");
+      router.push("/diary");
+    } catch (err) {
+      // ✅ 错误不再静默
+      toast("error", err instanceof Error ? err.message : "保存失败，请重试");
     } finally {
       setLoading(false);
     }
@@ -106,7 +106,8 @@ export default function WriteDiaryPage() {
           </div>
         </div>
 
-        <div className="flex gap-4 items-end">
+        {/* 日期 & 私密 */}
+        <div className="flex items-end gap-3">
           <div className="flex-1">
             <Input
               label="日期"
@@ -115,14 +116,13 @@ export default function WriteDiaryPage() {
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
-
           <button
             type="button"
             onClick={() => setIsPrivate(!isPrivate)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm transition
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition
               ${isPrivate
-                ? "bg-gray-100 border-gray-300 text-gray-700"
-                : "border-gray-200 text-gray-400 hover:border-gray-300"
+                ? "bg-gray-50 border-gray-300 text-gray-700"
+                : "border-gray-200 text-gray-400"
               }`}
           >
             {isPrivate ? <Lock size={14} /> : <Unlock size={14} />}

@@ -1,18 +1,20 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { ImagePlus, X } from "lucide-react";
 
 interface PhotoUploaderProps {
   photos: string[];
-  onChange: (photos: string[]) => void;
+  onChange: (urls: string[]) => void;
   max?: number;
+  onError?: (message: string) => void; // ✅ 新增：错误回调
 }
 
 export function PhotoUploader({
   photos,
   onChange,
   max = 9,
+  onError,
 }: PhotoUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -29,33 +31,48 @@ export function PhotoUploader({
 
       try {
         const uploaded: string[] = [];
+        const failed: string[] = [];
 
         for (const file of toUpload) {
           const formData = new FormData();
           formData.append("file", file);
 
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            body: formData,
-          });
+          try {
+            const res = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data.url) {
-              uploaded.push(data.url);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.url) {
+                uploaded.push(data.url);
+              }
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              failed.push(errData.error || file.name);
             }
+          } catch {
+            failed.push(file.name);
           }
         }
 
-        onChange([...photos, ...uploaded]);
-      } catch {
-        /* ignore */
+        if (uploaded.length > 0) {
+          onChange([...photos, ...uploaded]);
+        }
+
+        // ✅ 上传失败时通知调用方
+        if (failed.length > 0) {
+          onError?.(`${failed.length} 张图片上传失败`);
+        }
+      } catch (err) {
+        onError?.(err instanceof Error ? err.message : "图片上传失败");
       } finally {
         setUploading(false);
         if (inputRef.current) inputRef.current.value = "";
       }
     },
-    [photos, onChange, max]
+    [photos, onChange, max, onError]
   );
 
   const removePhoto = (index: number) => {
@@ -78,10 +95,7 @@ export function PhotoUploader({
           {photos.map((url, index) => (
             <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-[#eef1f3]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                    src={url}
-                    className="w-full h-full object-cover"
-                />
+              <img src={url} className="w-full h-full object-cover" alt="" />
               <button
                 type="button"
                 onClick={() => removePhoto(index)}

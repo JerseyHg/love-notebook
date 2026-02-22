@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/server/db";
 import { Prisma } from "@prisma/client";
 
+// ✅ 统一 author select，保持一致
+const authorSelect = {
+  select: { id: true, nickname: true, avatar: true },
+} as const;
+
 export async function getTimelines(
   coupleId: string,
   options: { page?: number; limit?: number; hasLocation?: boolean } = {}
@@ -16,9 +21,12 @@ export async function getTimelines(
   const [data, total] = await Promise.all([
     prisma.timeline.findMany({
       where,
+      include: {
+        author: authorSelect, // ✅ 新增：include author
+      },
       orderBy: { date: "desc" },
       skip,
-      take: limit + 1, // 多取一条判断是否还有更多
+      take: limit + 1,
     }),
     prisma.timeline.count({ where }),
   ]);
@@ -50,6 +58,9 @@ export async function createTimeline(
       mood: data.mood || null,
       date: new Date(data.date || Date.now()),
     },
+    include: {
+      author: authorSelect, // ✅ 返回 author 信息
+    },
   });
 }
 
@@ -69,7 +80,6 @@ export async function updateTimeline(
   if (!item || item.coupleId !== coupleId) throw new Error("记录不存在");
   if (item.authorId !== authorId) throw new Error("无权编辑他人记录");
 
-// 处理 location：Prisma JSON 字段不接受直接传 null
   const updateData: Record<string, unknown> = {
     ...data,
     date: data.date ? new Date(data.date) : undefined,
@@ -81,6 +91,9 @@ export async function updateTimeline(
   return prisma.timeline.update({
     where: { id: timelineId },
     data: updateData,
+    include: {
+      author: authorSelect, // ✅ 返回 author 信息
+    },
   });
 }
 

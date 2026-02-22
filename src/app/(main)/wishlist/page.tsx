@@ -1,68 +1,52 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Sparkles } from "lucide-react";
+import { useWishes } from "@/hooks/useWishes";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { WishCard } from "@/components/features/WishCard";
-import type { WishItem } from "@/types";
 
 export default function WishlistPage() {
-  const [wishes, setWishes] = useState<WishItem[]>([]);
+  const { toast } = useToast();
+  const { wishes, loading, error, createWish, toggleWish, deleteWish } = useWishes();
+
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const fetchWishes = useCallback(async () => {
-    try {
-      const res = await fetch("/api/wishlist");
-      if (res.ok) {
-        const data = await res.json();
-        setWishes(data.data || []);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
+  // ✅ 错误 toast
   useEffect(() => {
-    fetchWishes();
-  }, [fetchWishes]);
+    if (error) toast("error", error);
+  }, [error, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const res = await fetch("/api/wishlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description }),
-      });
-
-      if (res.ok) {
-        setTitle("");
-        setDescription("");
-        setShowForm(false);
-        fetchWishes();
-      }
-    } catch {
-      /* ignore */
+      await createWish({ title, description });
+      toast("success", "心愿已许下");
+      setTitle("");
+      setDescription("");
+      setShowForm(false);
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "创建失败");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const toggleWish = async (id: string) => {
+  const handleToggle = async (id: string) => {
     try {
-      await fetch(`/api/wishlist/${id}/toggle`, { method: "PATCH" });
-      fetchWishes();
-    } catch {
-      /* ignore */
+      await toggleWish(id);
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "操作失败");
     }
   };
 
@@ -104,7 +88,7 @@ export default function WishlistPage() {
                 <Button variant="ghost" type="button" onClick={() => setShowForm(false)}>
                   取消
                 </Button>
-                <Button type="submit" loading={loading}>
+                <Button type="submit" loading={submitting}>
                   许下心愿
                 </Button>
               </div>
@@ -113,39 +97,43 @@ export default function WishlistPage() {
         </motion.div>
       )}
 
-      {/* 未完成 */}
-      {pending.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-gray-500">
-            待完成 ({pending.length})
-          </h2>
-          <AnimatePresence>
-            {pending.map((wish) => (
-              <WishCard key={wish.id} wish={wish} onToggle={toggleWish} />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* 已完成 */}
-      {completed.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-gray-500">
-            已完成 ({completed.length})
-          </h2>
-          <AnimatePresence>
-            {completed.map((wish) => (
-              <WishCard key={wish.id} wish={wish} onToggle={toggleWish} />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {wishes.length === 0 && (
+      {loading ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-4xl mb-3">✨</p>
-          <p className="text-sm">许下你们的第一个心愿吧</p>
+          <p className="text-sm">加载中...</p>
         </div>
+      ) : (
+        <>
+          {/* 未完成 */}
+          {pending.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-500">待完成 ({pending.length})</h2>
+              <AnimatePresence>
+                {pending.map((wish) => (
+                  <WishCard key={wish.id} wish={wish} onToggle={handleToggle} />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* 已完成 */}
+          {completed.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-500">已完成 ({completed.length})</h2>
+              <AnimatePresence>
+                {completed.map((wish) => (
+                  <WishCard key={wish.id} wish={wish} onToggle={handleToggle} />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {wishes.length === 0 && (
+            <div className="text-center py-16 text-gray-400">
+              <p className="text-4xl mb-3">✨</p>
+              <p className="text-sm">许下你们的第一个心愿吧</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

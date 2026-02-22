@@ -1,113 +1,119 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import useSWRInfinite from "swr/infinite";
+import { useMemo, useCallback } from "react";
+import { fetcher, apiRequest } from "@/lib/fetcher";
 import type { TimelineItem } from "@/types";
 
+const PAGE_SIZE = 20;
+
+interface TimelinePage {
+  data: TimelineItem[];
+  hasMore: boolean;
+  total: number;
+}
+
+// 修正照片 URL（兼容旧数据）
+function fixPhotoUrl(url: string) {
+  if (url.startsWith("/api/files/uploads/")) {
+    return url.replace("/api/files/uploads/", "/uploads/");
+  }
+  return url;
+}
+
+function fixItem(item: TimelineItem): TimelineItem {
+  let photos = item.photos;
+  if (typeof photos === "string") {
+    try { photos = JSON.parse(photos as unknown as string); } catch { photos = []; }
+  }
+  if (!Array.isArray(photos)) photos = [];
+  return { ...item, photos: photos.map(fixPhotoUrl) };
+}
+
 /**
- * 时间轴数据管理 Hook
+ * 时间轴数据管理 Hook（SWR 版）
  *
- * 将 timeline/page.tsx 中 200+ 行的数据获取、分页、增删改逻辑
- * 全部抽到这里，页面组件只关心渲染。
+ * ✅ 自动缓存 & 去重
+ * ✅ 无限滚动分页
+ * ✅ 错误状态暴露给调用方
  */
 export function useTimeline() {
-  const [items, setItems] = useState<TimelineItem[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  // 修正照片 URL
-  const fixPhotoUrl = (url: string) => {
-    if (url.startsWith("/api/files/uploads/")) {
-      return url.replace("/api/files/uploads/", "/uploads/");
-    }
-    return url;
+  const getKey = (pageIndex: number, previousPageData: TimelinePage | null) => {
+    // 到底了，不再请求
+    if (previousPageData && !previousPageData.hasMore) return null;
+    return `/api/timeline?page=${pageIndex + 1}&limit=${PAGE_SIZE}`;
   };
 
-  const fixItem = (item: TimelineItem): TimelineItem => ({
-    ...item,
-    photos: Array.isArray(item.photos)
-      ? item.photos.map(fixPhotoUrl)
-      : [],
-  });
+  const { data: pages, error, isLoading, isValidating, size, setSize, mutate } =
+    useSWRInfinite<TimelinePage>(getKey, fetcher, {
+      revalidateFirstPage: false,
+      revalidateAll: false,
+    });
 
-  const fetchTimelines = useCallback(async (pageNum = 1, append = false) => {
-    try {
-      if (pageNum === 1) setLoading(true);
-      else setLoadingMore(true);
+  // 合并所有页数据
+  const items = useMemo(() => {
+    if (!pages) return [];
+    return pages.flatMap((page) => (page.data || []).map(fixItem));
+  }, [pages]);
 
-      const res = await fetch(`/api/timeline?page=${pageNum}&limit=20`);
-      if (!res.ok) throw new Error("获取失败");
-
-      const json = await res.json();
-      const fixedData = (json.data || []).map(fixItem);
-
-      setItems((prev) => (append ? [...prev, ...fixedData] : fixedData));
-      setHasMore(json.hasMore || false);
-      setPage(pageNum);
-    } catch (err) {
-      console.warn("Fetch timelines failed:", err);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
+  const hasMore = pages ? pages[pages.length - 1]?.hasMore ?? false : false;
+  const loadingMore = isValidating && (pages?.length ?? 0) > 0;
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore) {
-      fetchTimelines(page + 1, true);
+      setSize((s) => s + 1);
     }
-  }, [fetchTimelines, page, hasMore, loadingMore]);
+  }, [loadingMore, hasMore, setSize]);
 
   const createTimeline = useCallback(
-    async (data: {
-      content: string;
-      photos?: string[];
-      mood?: string;
-      date?: string;
-    }) => {
-      const res = await fetch("/api/timeline", {
+    async (data: { content: string; photos?: string[]; mood?: string; date?: string }) => {
+      await apiRequest("/api/timeline", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("创建失败");
-      await fetchTimelines(1); // 刷新列表
+      // 重新获取第一页
+      mutate();
     },
-    [fetchTimelines]
+    [mutate]
   );
 
   const updateTimeline = useCallback(
     async (id: string, data: Partial<TimelineItem>) => {
-      const res = await fetch(`/api/timeline/${id}`, {
+      await apiRequest("/api/timeline", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ id, ...data }),
       });
-      if (!res.ok) throw new Error("更新失败");
-      await fetchTimelines(1);
+      mutate();
     },
-    [fetchTimelines]
+    [mutate]
   );
 
   const deleteTimeline = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/timeline/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("删除失败");
-      setItems((prev) => prev.filter((item) => item.id !== id));
+      await apiRequest(`/api/timeline?id=${id}`, { method: "DELETE" });
+      // 乐观更新：立即从缓存中移除
+      mutate(
+        (pages) =>
+          pages?.map((page) => ({
+            ...page,
+            data: page.data.filter((item) => item.id !== id),
+          })),
+        { revalidate: false }
+      );
     },
-    []
+    [mutate]
   );
 
   return {
     items,
     hasMore,
-    loading,
+    loading: isLoading,
     loadingMore,
-    fetchTimelines,
+    error: error?.message || null,
     loadMore,
     createTimeline,
     updateTimeline,
     deleteTimeline,
+    refresh: () => mutate(),
   };
 }

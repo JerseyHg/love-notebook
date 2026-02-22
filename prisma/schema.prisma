@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String     @id @default(cuid())
+  email     String     @unique
   password  String
   nickname  String
   avatar    String?
   coupleId  String?
-  couple    Couple?  @relation(fields: [coupleId], references: [id])
+  couple    Couple?    @relation(fields: [coupleId], references: [id])
   diaries   Diary[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  timelines Timeline[] // ✅ 新增：User -> Timeline 反向关系
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
   @@index([coupleId])
 }
@@ -28,6 +29,7 @@ model Couple {
   togetherDate  DateTime
   users         User[]
   timelines     Timeline[]
+  diaries       Diary[]       // ✅ 新增：Couple -> Diary 反向关系
   wishes        Wish[]
   anniversaries Anniversary[]
   createdAt     DateTime      @default(now())
@@ -39,6 +41,7 @@ model Timeline {
   coupleId  String
   couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
   authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade) // ✅ 新增：author 关系
   content   String   @db.Text
   photos    Json     @default("[]")
   location  Json?
@@ -48,12 +51,15 @@ model Timeline {
   updatedAt DateTime @updatedAt
 
   @@index([coupleId, date])
+  @@index([authorId]) // ✅ 新增索引
 }
 
 model Diary {
   id        String   @id @default(cuid())
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  coupleId  String?                                                                     // ✅ 新增：coupleId 字段
+  couple    Couple?  @relation(fields: [coupleId], references: [id], onDelete: Cascade)  // ✅ 新增：couple 关系
   title     String   @default("")
   content   String   @db.Text
   mood      String?
@@ -64,33 +70,34 @@ model Diary {
   updatedAt DateTime @updatedAt
 
   @@index([authorId, date])
+  @@index([coupleId]) // ✅ 新增索引
 }
 
 model Wish {
-  id          String    @id @default(cuid())
-  coupleId    String
-  couple      Couple    @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  authorId    String
-  title       String
-  description String?   @db.Text
-  completed   Boolean   @default(false)
-  completedAt DateTime?
+  id             String    @id @default(cuid())
+  coupleId       String
+  couple         Couple    @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  authorId       String
+  title          String
+  description    String?   @db.Text
+  completed      Boolean   @default(false)
+  completedAt    DateTime?
   completedPhoto String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([coupleId])
 }
 
 model Anniversary {
-  id       String   @id @default(cuid())
-  coupleId String
-  couple   Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  title    String
-  date     DateTime
-  icon     String   @default("❤️")
-  repeat   String   @default("yearly") // yearly | monthly | once
-  notify   Boolean  @default(true)
+  id        String   @id @default(cuid())
+  coupleId  String
+  couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  title     String
+  date      DateTime
+  icon      String   @default("❤️")
+  repeat    String   @default("yearly") // yearly | monthly | once
+  notify    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
