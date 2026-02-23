@@ -27,10 +27,13 @@ export async function middleware(req: NextRequest) {
 
   // 静态资源 & 公开路径跳过
   if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/uploads") ||
-    isPublicPath(pathname)
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/favicon") ||
+      pathname.startsWith("/uploads") ||
+      pathname.startsWith("/icons") ||
+      pathname === "/manifest.json" ||
+      pathname === "/sw.js" ||
+      isPublicPath(pathname)
   ) {
     return NextResponse.next();
   }
