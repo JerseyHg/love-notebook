@@ -70,18 +70,18 @@ export function MapView({
 
     // 使用高德瓦片（中国地区更清晰，且免费）
     leaflet.tileLayer(
-      "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
-      {
-        subdomains: ["1", "2", "3", "4"],
-        maxZoom: 18,
-      }
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          subdomains: ["a", "b", "c"],
+          maxZoom: 18,
+        }
     ).addTo(map);
 
     // 缩放控件放右下角
     leaflet.control.zoom({ position: "bottomright" }).addTo(map);
 
     // 归属信息
-    leaflet.control.attribution({ position: "bottomleft", prefix: "© 高德地图" }).addTo(map);
+    leaflet.control.attribution({ position: "bottomleft", prefix: "© OpenStreetMap" }).addTo(map);
 
     mapInstanceRef.current = map;
     setReady(true);
