@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "space.zexing9495.twa",
+      "sha256_cert_fingerprints": [
+        "28:E6:24:73:EB:9D:2A:5D:0F:B4:60:91:99:2E:C6:B2:E5:0D:4A:88:68:E4:29:D9:4B:6D:37:D3:F8:A0:13:19"
+      ]
+    }
+  }
+]

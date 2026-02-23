@@ -31,6 +31,7 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/favicon") ||
       pathname.startsWith("/uploads") ||
       pathname.startsWith("/icons") ||
+      pathname.startsWith("/.well-known") ||
       pathname === "/manifest.json" ||
       pathname === "/sw.js" ||
       isPublicPath(pathname)
