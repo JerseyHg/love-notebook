@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   title: "恋人笔记本 💕",
   description: "记录属于你们的故事",
   icons: { icon: "/favicon.ico" },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "恋人笔记本",
+  },
 };
 
 export const viewport: Viewport = {
@@ -30,7 +36,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className={serifFont.variable}>
-      <body className="antialiased">{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
+      <body className="antialiased">
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
+      </body>
     </html>
   );
 }
