@@ -1,51 +1,43 @@
-/// <reference lib="webworker" />
+const CACHE_NAME = "love-notebook-v2";
 
-const CACHE_NAME = "love-notebook-v1";
-
-// 需要预缓存的静态资源
-const PRECACHE_URLS = ["/timeline", "/diary", "/map", "/wishlist", "/anniversary"];
-
-// 安装：预缓存核心页面
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
-  );
-  self.skipWaiting();
+self.addEventListener("install", () => {
+    self.skipWaiting();
 });
 
-// 激活：清除旧缓存
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+    event.waitUntil(
+        caches.keys().then((keys) =>
+            Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+        )
+    );
+    self.clients.claim();
 });
 
-// 请求策略：网络优先，失败用缓存
 self.addEventListener("fetch", (event) => {
-  const { request } = event;
+    const { request } = event;
 
-  // API 请求不缓存
-  if (request.url.includes("/api/")) return;
+    // 只缓存静态资源（JS/CSS/图片/字体）
+    if (
+        request.method !== "GET" ||
+        request.url.includes("/api/") ||
+        request.mode === "navigate"
+    ) {
+        return;
+    }
 
-  // 非 GET 不缓存
-  if (request.method !== "GET") return;
-
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // 成功响应放入缓存
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      })
-      .catch(() => {
-        // 离线时用缓存
-        return caches.match(request);
-      })
-  );
+    // 静态资源：缓存优先
+    if (request.url.match(/\.(js|css|png|jpg|jpeg|webp|svg|woff2?)$/)) {
+        event.respondWith(
+            caches.match(request).then((cached) => {
+                if (cached) return cached;
+                return fetch(request).then((response) => {
+                    if (response.ok) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+                    }
+                    return response;
+                });
+            })
+        );
+    }
 });
